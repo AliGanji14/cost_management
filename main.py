@@ -1,4 +1,4 @@
-from fastapi import FastAPI, status, Query, HTTPException
+from fastapi import FastAPI, status, Query, HTTPException, Body
 from fastapi.responses import JSONResponse
 
 
@@ -30,3 +30,11 @@ def get_expenses(q: str | None = Query(description='Search expenses by descripti
                                 detail=f'No cost found with description')
         return results
     return expenses
+
+
+@app.post('/expenses', status_code=status.HTTP_201_CREATED)
+def create_expense(description: str = Body(embed=True), amount: float = Body(embed=True)):
+    last_id = max(expense['id'] for expense in expenses) if expenses else 0
+    cost_obj = {'id': last_id+1, "description": description, "amount": amount}
+    expenses.append(cost_obj)
+    return cost_obj
