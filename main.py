@@ -1,4 +1,4 @@
-from fastapi import FastAPI, status, Query, HTTPException, Body, Path
+from fastapi import FastAPI, status, Query, HTTPException, Body, Path, Form
 from fastapi.responses import JSONResponse
 
 
@@ -41,9 +41,20 @@ def create_expense(description: str = Body(embed=True), amount: float = Body(emb
 
 
 @app.get('/expenses/{id}', status_code=status.HTTP_200_OK)
-def get_expense(id: int = Path(description='the id of the cost in expenses')):
-    for name in expenses:
-        if name['id'] == id:
-            return name
+def get_expense(id: int = Path(description='The ID of the cost in expenses')):
+    for cost in expenses:
+        if cost['id'] == id:
+            return cost
+    raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                        detail='cost not found')
+
+
+@app.put('/expenses/{id}', status_code=status.HTTP_201_CREATED)
+def update_expense(id: int = Path(description='The ID of the cost in expenses'), description: str = Body(), amount: float = Body()):
+    for cost in expenses:
+        if cost['id'] == id:
+            cost['description'] = description
+            cost['amount'] = amount
+            return cost
     raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                         detail='cost not found')
