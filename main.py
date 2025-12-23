@@ -1,5 +1,5 @@
-from fastapi import FastAPI, status, Query, HTTPException, Body, Path,
-
+from fastapi import FastAPI, status, Query, HTTPException, Body, Path
+from fastapi.responses import JSONResponse
 
 app = FastAPI()
 
@@ -59,11 +59,11 @@ def update_expense(id: int = Path(description='The ID of the cost in expenses'),
                         detail='cost not found')
 
 
-@app.delete('/expenses/{id}', status_code=status.HTTP_204_NO_CONTENT)
+@app.delete('/expenses/{id}', status_code=status.HTTP_200_OK)
 def delete_expense(id: int = Path(description='The ID of the cost in expenses')):
     for cost in expenses:
         if cost['id'] == id:
             expenses.remove(cost)
-            return
+            return JSONResponse(content={'detail': 'cost removed successfuly'},)
     raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                         detail='cost not found')
