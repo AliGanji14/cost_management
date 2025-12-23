@@ -1,5 +1,4 @@
-from fastapi import FastAPI, status, Query, HTTPException, Body, Path, Form
-from fastapi.responses import JSONResponse
+from fastapi import FastAPI, status, Query, HTTPException, Body, Path,
 
 
 app = FastAPI()
@@ -49,12 +48,22 @@ def get_expense(id: int = Path(description='The ID of the cost in expenses')):
                         detail='cost not found')
 
 
-@app.put('/expenses/{id}', status_code=status.HTTP_201_CREATED)
-def update_expense(id: int = Path(description='The ID of the cost in expenses'), description: str = Body(), amount: float = Body()):
+@app.put('/expenses/{id}', status_code=status.HTTP_200_OK)
+def update_expense(id: int = Path(description='The ID of the cost in expenses'), description: str = Body(embed=True), amount: float = Body(embed=True)):
     for cost in expenses:
         if cost['id'] == id:
             cost['description'] = description
             cost['amount'] = amount
             return cost
+    raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                        detail='cost not found')
+
+
+@app.delete('/expenses/{id}', status_code=status.HTTP_204_NO_CONTENT)
+def delete_expense(id: int = Path(description='The ID of the cost in expenses')):
+    for cost in expenses:
+        if cost['id'] == id:
+            expenses.remove(cost)
+            return
     raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                         detail='cost not found')
