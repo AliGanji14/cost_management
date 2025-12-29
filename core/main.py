@@ -1,5 +1,7 @@
 from fastapi import FastAPI, status, Query, HTTPException, Body, Path
 from fastapi.responses import JSONResponse
+from schemas import ExpenseCreateSchema, ExpenseResponseSchema, ExpenseUpdateSchema
+from typing import List
 
 app = FastAPI()
 
@@ -15,7 +17,7 @@ expenses = [
 ]
 
 
-@app.get('/expenses', status_code=status.HTTP_200_OK)
+@app.get('/expenses', status_code=status.HTTP_200_OK, response_model=List[ExpenseResponseSchema])
 def get_expenses(q: str | None = Query(description='Search expenses by description',
                                        example='Internet',
                                        alias='search',
@@ -31,15 +33,16 @@ def get_expenses(q: str | None = Query(description='Search expenses by descripti
     return expenses
 
 
-@app.post('/expenses', status_code=status.HTTP_201_CREATED)
-def create_expense(description: str = Body(embed=True), amount: float = Body(embed=True)):
+@app.post('/expenses', status_code=status.HTTP_201_CREATED, response_model=ExpenseResponseSchema)
+def create_expense(expense: ExpenseCreateSchema):
     last_id = max(expense['id'] for expense in expenses) if expenses else 0
-    cost_obj = {'id': last_id+1, "description": description, "amount": amount}
+    cost_obj = {'id': last_id+1,
+                "description": expense.description, "amount": expense.amount}
     expenses.append(cost_obj)
     return cost_obj
 
 
-@app.get('/expenses/{id}', status_code=status.HTTP_200_OK)
+@app.get('/expenses/{id}', status_code=status.HTTP_200_OK, response_model=ExpenseResponseSchema)
 def get_expense(id: int = Path(description='The ID of the cost in expenses')):
     for cost in expenses:
         if cost['id'] == id:
@@ -48,12 +51,12 @@ def get_expense(id: int = Path(description='The ID of the cost in expenses')):
                         detail='cost not found')
 
 
-@app.put('/expenses/{id}', status_code=status.HTTP_200_OK)
-def update_expense(id: int = Path(description='The ID of the cost in expenses'), description: str = Body(embed=True), amount: float = Body(embed=True)):
+@app.put('/expenses/{id}', status_code=status.HTTP_200_OK, response_model=ExpenseResponseSchema)
+def update_expense(expense: ExpenseUpdateSchema, id: int = Path(description='The ID of the cost in expenses')):
     for cost in expenses:
         if cost['id'] == id:
-            cost['description'] = description
-            cost['amount'] = amount
+            cost['description'] = expense.description
+            cost['amount'] = expense.amount
             return cost
     raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                         detail='cost not found')
