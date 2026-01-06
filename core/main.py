@@ -1,72 +1,81 @@
-from fastapi import FastAPI, status, Query, HTTPException, Body, Path
+from fastapi import FastAPI, status, Query, HTTPException, Path, Depends
 from fastapi.responses import JSONResponse
-from schemas import ExpenseCreateSchema, ExpenseResponseSchema, ExpenseUpdateSchema
+from contextlib import asynccontextmanager
 from typing import List
+from sqlalchemy.orm import Session
+
+from schemas import ExpenseCreateSchema, ExpenseResponseSchema, ExpenseUpdateSchema
+from database import Base, engine, get_db, Expense
+
 
 app = FastAPI()
 
 
-expenses = [
-    {"id": 1, "description": "Internet purchase", "amount": 250000.50},
-    {"id": 2, "description": "Taxi fare", "amount": 85000.0},
-    {"id": 3, "description": "Lunch purchase", "amount": 120000.75},
-    {"id": 4, "description": "Mobile bill", "amount": 98000.0},
-    {"id": 5, "description": "Book purchase", "amount": 175000.25},
-    {"id": 6, "description": "Wallet top-up", "amount": 300000.0},
-    {"id": 7, "description": "Parking fee", "amount": 40000.0}
-]
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    print('Application startup')
+    Base.metadata.create_all(engine)
+    yield
+    print('Application shutdown')
+
+app = FastAPI(lifespan=lifespan)
 
 
 @app.get('/expenses', status_code=status.HTTP_200_OK, response_model=List[ExpenseResponseSchema])
-def get_expenses(q: str | None = Query(description='Search expenses by description',
-                                       example='Internet',
-                                       alias='search',
-                                       max_length=50,
-                                       default=None)):
+def get_expenses(q: str | None = Query(
+        description='Search expenses by description',
+        example='Internet',
+        alias='search',
+        max_length=50,
+        default=None), db: Session = Depends(get_db)):
+    query = db.query(Expense)
     if q:
-        results = [cost for cost in expenses if q.lower()
-                   in cost['description'].lower()]
-        if not results:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
-                                detail=f'No cost found with description')
-        return results
-    return expenses
+        query = query.filter_by(description=q)
+    results = query.all()
+    return results
 
 
 @app.post('/expenses', status_code=status.HTTP_201_CREATED, response_model=ExpenseResponseSchema)
-def create_expense(expense: ExpenseCreateSchema):
-    last_id = max(expense['id'] for expense in expenses) if expenses else 0
-    cost_obj = {'id': last_id+1,
-                "description": expense.description, "amount": expense.amount}
-    expenses.append(cost_obj)
-    return cost_obj
+def create_expense(request: ExpenseCreateSchema, db: Session = Depends(get_db)):
+    new_expense = Expense(description=request.description,
+                          amount=request.amount)
+    db.add(new_expense)
+    db.commit()
+    db.refresh(new_expense)
+    return new_expense
 
 
 @app.get('/expenses/{id}', status_code=status.HTTP_200_OK, response_model=ExpenseResponseSchema)
-def get_expense(id: int = Path(description='The ID of the cost in expenses')):
-    for cost in expenses:
-        if cost['id'] == id:
-            return cost
-    raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
-                        detail='cost not found')
+def get_expense(id: int = Path(description='The ID of the cost in expenses'), db: Session = Depends(get_db)):
+    expense = db.query(Expense).filter_by(id=id).one_or_none()
+    if expense:
+        return expense
+    else:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                            detail='cost not found')
 
 
 @app.put('/expenses/{id}', status_code=status.HTTP_200_OK, response_model=ExpenseResponseSchema)
-def update_expense(expense: ExpenseUpdateSchema, id: int = Path(description='The ID of the cost in expenses')):
-    for cost in expenses:
-        if cost['id'] == id:
-            cost['description'] = expense.description
-            cost['amount'] = expense.amount
-            return cost
-    raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
-                        detail='cost not found')
+def update_expense(request: ExpenseUpdateSchema, id: int = Path(description='The ID of the cost in expenses'), db: Session = Depends(get_db)):
+    expense = db.query(Expense).filter_by(id=id).one_or_none()
+    if expense:
+        expense.description = request.description
+        expense.amount = request.amount
+        db.commit()
+        db.refresh(expense)
+        return expense
+    else:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                            detail='cost not found')
 
 
 @app.delete('/expenses/{id}', status_code=status.HTTP_200_OK)
-def delete_expense(id: int = Path(description='The ID of the cost in expenses')):
-    for cost in expenses:
-        if cost['id'] == id:
-            expenses.remove(cost)
-            return JSONResponse(content={'detail': 'cost removed successfuly'},)
-    raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
-                        detail='cost not found')
+def delete_expense(id: int = Path(description='The ID of the cost in expenses'), db: Session = Depends(get_db)):
+    expense = db.query(Expense).filter_by(id=id).one_or_none()
+    if expense:
+        db.delete(expense)
+        db.commit()
+        return JSONResponse(content={'detail': 'cost removed successfuly'},)
+    else:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                            detail='cost not found')
